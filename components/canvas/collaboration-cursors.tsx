@@ -23,14 +23,17 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 type UseRealtimeCursorsArgs = {
   wsUrl: string;
   userId: string;
+  userName: string;
+  avatarUrl?: string;
   boardId: string;
 };
 
-export function useRealtimeCursors({ wsUrl, userId, boardId }: UseRealtimeCursorsArgs) {
-  const [cursors, setCursors] = useState<{ [userId: string]: { x: number; y: number } }>({});
+export function useRealtimeCursors({ wsUrl, userId, userName, avatarUrl, boardId }: UseRealtimeCursorsArgs) {
+  const [cursors, setCursors] = useState<{ [userId: string]: { x: number; y: number; userName: string; avatarUrl?: string } }>({});
   const wsRef = useRef<WebSocket | null>(null);
 
   useEffect(() => {
+    if (!userId || !boardId) return;
     const ws = new window.WebSocket(wsUrl);
     wsRef.current = ws;
 
@@ -42,7 +45,15 @@ export function useRealtimeCursors({ wsUrl, userId, boardId }: UseRealtimeCursor
       try {
         const data = JSON.parse(event.data);
         if (data.type === 'cursor' && data.boardId === boardId && data.userId !== userId) {
-          setCursors(prev => ({ ...prev, [data.userId]: { x: data.x, y: data.y } }));
+          setCursors(prev => ({
+            ...prev,
+            [data.userId]: {
+              x: data.x,
+              y: data.y,
+              userName: data.userName,
+              avatarUrl: data.avatarUrl
+            }
+          }));
         }
       } catch {}
     };
@@ -58,18 +69,90 @@ export function useRealtimeCursors({ wsUrl, userId, boardId }: UseRealtimeCursor
 
   // Send cursor position
   const sendCursor = useCallback((x: number, y: number) => {
+    if (!userId || !boardId) return;
     if (wsRef.current && wsRef.current.readyState === 1) {
       wsRef.current.send(JSON.stringify({
         type: 'cursor',
         userId,
+        userName,
+        avatarUrl,
         boardId,
         x,
         y
       }));
     }
-  }, [userId, boardId]);
+  }, [userId, userName, avatarUrl, boardId]);
 
   return { cursors, sendCursor };
+}
+
+export function useRealtimeBoard({ wsUrl, userId, boardId, setElements }: {
+  wsUrl: string;
+  userId: string;
+  boardId: string;
+  setElements: (updater: (prev: any[]) => any[]) => void;
+}) {
+  console.log("useRealtimeBoard hook called", { wsUrl, userId, boardId });
+  const wsRef = useRef<WebSocket | null>(null);
+  const [connectionStatus, setConnectionStatus] = useState<'connecting' | 'open' | 'closed' | 'error'>('connecting');
+
+  useEffect(() => {
+    if (!userId || !boardId) return;
+    console.log("Creating WebSocket connection to", wsUrl);
+    setConnectionStatus('connecting');
+    const ws = new window.WebSocket(wsUrl);
+    wsRef.current = ws;
+
+    ws.onopen = () => {
+      console.log("WebSocket opened");
+      setConnectionStatus('open');
+    };
+    ws.onclose = () => {
+      console.log("WebSocket closed");
+      setConnectionStatus('closed');
+    };
+    ws.onerror = () => {
+      console.log("WebSocket error");
+      setConnectionStatus('error');
+    };
+
+    ws.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        if (data.type === 'element_update' && data.boardId === boardId && data.userId !== userId) {
+          setElements((prev: any[]) => {
+            if (data.action === 'update') {
+              return prev.map((el: any) => el.id === data.element.id ? data.element : el);
+            } else if (data.action === 'create') {
+              return [...prev, data.element];
+            } else if (data.action === 'delete') {
+              return prev.filter((el: any) => el.id !== data.element.id);
+            }
+            return prev;
+          });
+        }
+      } catch {}
+    };
+
+    return () => {
+      ws.close();
+    };
+  }, [wsUrl, userId, boardId, setElements]);
+
+  const sendElementUpdate = useCallback((element: any, action = 'update') => {
+    if (!userId || !boardId) return;
+    if (wsRef.current && wsRef.current.readyState === 1) {
+      wsRef.current.send(JSON.stringify({
+        type: 'element_update',
+        userId,
+        boardId,
+        action,
+        element
+      }));
+    }
+  }, [userId, boardId]);
+
+  return { sendElementUpdate, connectionStatus };
 }
 
 // Example usage in a component:

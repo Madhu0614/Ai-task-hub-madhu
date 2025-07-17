@@ -73,11 +73,11 @@ export default function SignUpForm() {
         description: "You can now sign in with your credentials.",
       });
       router.push('/login');
-    } catch (error) {
+    } catch (error: any) {
       console.error('Signup error:', error);
       toast({
         title: "Error creating account",
-        description: error instanceof Error ? error.message : "Failed to create account. Please try again.",
+        description: error.message,
         variant: "destructive",
       });
     } finally {

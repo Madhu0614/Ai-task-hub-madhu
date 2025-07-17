@@ -22,6 +22,9 @@ import CanvasElement from '@/components/canvas/canvas-element';
 import CollaborationCursors from '@/components/canvas/collaboration-cursors';
 import { useToast } from '@/hooks/use-toast';
 import { useRealtimeCursors } from '@/components/canvas/collaboration-cursors';
+import { useRealtimeBoard } from '@/components/canvas/collaboration-cursors';
+import { Dialog, DialogContent, DialogHeader } from '@/components/ui/dialog';
+import { supabase } from '@/lib/supabase';
 
 interface KanbanColumn {
   id: string;
@@ -101,6 +104,7 @@ export default function BoardPage() {
   const boardId = params.id as string;
   const { toast } = useToast();
 
+  // Move all state and ref declarations to the top
   const [user, setUser] = useState<User | null>(null);
   const [board, setBoard] = useState<Board | null>(null);
   const [loading, setLoading] = useState(true);
@@ -121,9 +125,72 @@ export default function BoardPage() {
   const [inviteEmails, setInviteEmails] = useState<string[]>(['']);
   const [cursors, setCursors] = useState<CursorPosition[]>([]);
   const [currentUserCursor, setCurrentUserCursor] = useState<{ x: number; y: number } | null>(null);
-  
   const realtimeRef = useRef<RealtimeCollaboration | null>(null);
   const cursorUpdateTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Add state for all users and loading
+  const [allUsers, setAllUsers] = useState<any[]>([]);
+  const [loadingUsers, setLoadingUsers] = useState(false);
+  const [inviteError, setInviteError] = useState<string | null>(null);
+  const [collaborators, setCollaborators] = useState<any[]>([]);
+
+  // Fetch collaborators after loading the board
+  useEffect(() => {
+    if (board) {
+      boardService.getCollaborators(board.id).then(setCollaborators);
+    }
+  }, [board]);
+
+  // Fetch all users when invite modal is opened
+  useEffect(() => {
+    if (showInviteModal) {
+      setLoadingUsers(true);
+      setInviteError(null);
+      supabase.from('user_list').select('id, name, email, avatar_url').then(({ data, error }) => {
+        if (error) setInviteError('Failed to load users');
+        setAllUsers(data || []);
+        setLoadingUsers(false);
+      });
+    }
+  }, [showInviteModal]);
+
+  // Get current collaborators' user IDs
+  const collaboratorIds = collaborators.map((c: any) => c.user_id);
+
+  // Invite handler
+  async function handleInvite(user: any) {
+    setInviteError(null);
+    try {
+      await boardService.addCollaborator(boardId, user.email);
+      setShowInviteModal(false);
+      // Optionally, refresh collaborators list here
+    } catch (err: any) {
+      setInviteError(err.message || 'Failed to invite user');
+    }
+  }
+
+  // Now call the realtime cursors hook
+  const wsUrl = process.env.NEXT_PUBLIC_WS_URL || 'wss://ai-task-hub-madhu.onrender.com';
+  const { cursors: wsCursors, sendCursor } = useRealtimeCursors({
+    wsUrl,
+    userId: user?.id ?? "",
+    userName: user?.name ?? "",
+    avatarUrl: user?.avatar_url ?? "",
+    boardId: boardId ?? ""
+  });
+
+  // Add the realtime board hook and log connectionStatus after it is defined
+  const { sendElementUpdate, connectionStatus } = useRealtimeBoard({
+    wsUrl,
+    userId: user?.id ?? "",
+    boardId: boardId ?? "",
+    setElements,
+  });
+
+  useEffect(() => {
+    console.log("WebSocket connection status effect running:", connectionStatus);
+    console.log("WebSocket connection status:", connectionStatus);
+  }, [connectionStatus]);
 
   useEffect(() => {
     const initializeBoard = async () => {
@@ -329,9 +396,12 @@ export default function BoardPage() {
     setSelectedTool('select');
     setSelectedElements([newElement.id]);
 
+    // Broadcast creation to other users via WebSocket
+    sendElementUpdate(newElement, 'create');
+
     // Save to database
     await saveElementToDatabase(newElement);
-  }, [selectedTool, elements, saveToHistory, saveElementToDatabase]);
+  }, [selectedTool, elements, saveToHistory, saveElementToDatabase, sendElementUpdate]);
 
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
     const rect = e.currentTarget.getBoundingClientRect();
@@ -341,13 +411,8 @@ export default function BoardPage() {
     // Update current user cursor position
     setCurrentUserCursor({ x, y });
 
-    // Update cursor position for real-time collaboration
-    if (realtimeRef.current && cursorUpdateTimeoutRef.current === null) {
-      cursorUpdateTimeoutRef.current = setTimeout(() => {
-        realtimeRef.current?.updateCursor(x, y);
-        cursorUpdateTimeoutRef.current = null;
-      }, 50); // Throttle cursor updates
-    }
+    // Instantly update cursor position for real-time collaboration
+    sendCursor(x, y);
 
     // Existing mouse move logic
     if (isDragging && selectedElements.length > 0 && dragOffset) {
@@ -363,18 +428,19 @@ export default function BoardPage() {
       currentPathRef.current.push({ x, y });
       setRenderPath([...currentPathRef.current]);
     }
-  }, [isDragging, selectedElements, dragOffset, isDrawing, selectedTool, elements]);
+  }, [isDragging, selectedElements, dragOffset, isDrawing, selectedTool, elements, sendCursor]);
 
   const handleElementUpdate = useCallback(async (id: string, updates: Partial<CanvasElementData>) => {
-    const newElements = elements.map(el => el.id === id ? { ...el, ...updates } : el);
+    const newElements = elements.map((el: CanvasElementData) => el.id === id ? { ...el, ...updates } : el);
     setElements(newElements);
-    
-    // Save to database
-    const updatedElement = newElements.find(el => el.id === id);
+
+    // Broadcast to other users via WebSocket
+    const updatedElement = newElements.find((el: CanvasElementData) => el.id === id);
     if (updatedElement) {
+      sendElementUpdate(updatedElement, "update");
       await saveElementToDatabase(updatedElement, true);
     }
-  }, [elements, saveElementToDatabase]);
+  }, [elements, saveElementToDatabase, sendElementUpdate]);
 
   const handleConnect = useCallback((fromId: string, toId: string) => {
     const newElements = elements.map(el => {
@@ -492,15 +558,6 @@ export default function BoardPage() {
       </div>
     );
   }
-
-  // Add real-time cursors via WebSocket server
-  // Use environment variable for WebSocket server URL
-  const wsUrl = process.env.NEXT_PUBLIC_WS_URL || 'wss://ai-task-hub-madhu.onrender.com'; // fallback for local dev
-  const { cursors: wsCursors, sendCursor } = useRealtimeCursors({
-    wsUrl,
-    userId: user.id,
-    boardId
-  });
 
   const toolbarItems = [
     { id: 'select', icon: MousePointer, label: 'Select', color: 'text-slate-600', bgColor: 'hover:bg-slate-100' },
@@ -642,16 +699,13 @@ export default function BoardPage() {
               
               {/* Real-time collaboration cursors */}
               <CollaborationCursors 
-                cursors={Object.entries(wsCursors).map(([id, pos]) => {
-                  const { x, y } = pos as { x: number; y: number };
-                  return {
-                    x,
-                    y,
-                    user: { id, name: id }
-                  };
-                })} 
-                zoom={zoomLevel} 
-                currentUser={user}
+                cursors={Object.entries(wsCursors).map(([id, pos]) => ({
+                  x: pos.x,
+                  y: pos.y,
+                  user: { id, name: pos.userName, avatar_url: pos.avatarUrl }
+                }))}
+                zoom={zoomLevel}
+                currentUser={user ? { id: user.id, name: user.name, avatar_url: user.avatar_url } : undefined}
                 currentUserCursor={currentUserCursor || undefined}
               />
             </div>
@@ -705,56 +759,27 @@ export default function BoardPage() {
               onClick={(e) => e.stopPropagation()}
             >
               <h3 className="text-lg font-semibold text-slate-900 mb-4">Invite Collaborators</h3>
-              <div className="space-y-4">
-                <div className="space-y-3">
-                  {inviteEmails.map((email, index) => (
-                    <div key={index} className="flex items-center space-x-2">
-                      <Input
-                        type="email"
-                        placeholder="Enter email address"
-                        value={email}
-                        onChange={(e) => updateInviteEmail(index, e.target.value)}
-                        className="flex-1"
-                      />
-                      {inviteEmails.length > 1 && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => removeInviteEmail(index)}
-                          className="p-2 h-10 w-10 text-slate-400 hover:text-red-600"
-                        >
-                          <X className="h-4 w-4" />
-                        </Button>
-                      )}
-                    </div>
-                  ))}
-                </div>
-                
-                <Button
-                  variant="outline"
-                  onClick={addInviteEmail}
-                  className="w-full text-blue-600 border-blue-200 hover:bg-blue-50"
-                >
-                  <UserPlus className="h-4 w-4 mr-2" />
-                  Add Another Email
-                </Button>
-
-                <div className="flex space-x-3">
-                  <Button
-                    variant="outline"
-                    onClick={() => setShowInviteModal(false)}
-                    className="flex-1"
-                  >
-                    Cancel
-                  </Button>
-                  <Button
-                    onClick={handleInviteCollaborators}
-                    className="flex-1 bg-blue-600 hover:bg-blue-700"
-                  >
-                    Send Invites
-                  </Button>
-                </div>
-              </div>
+              {inviteError && <div className="text-red-500 mb-2">{inviteError}</div>}
+              {loadingUsers ? (
+                <div>Loading users...</div>
+              ) : (
+                <ul className="max-h-64 overflow-y-auto divide-y">
+                  {allUsers
+                    .filter(u => u.id !== user?.id && !collaboratorIds.includes(u.id))
+                    .map(u => (
+                      <li key={u.id} className="flex items-center justify-between py-2">
+                        <div className="flex items-center gap-2">
+                          <Avatar className="w-7 h-7"><AvatarFallback>{u.name?.substring(0,2).toUpperCase()}</AvatarFallback></Avatar>
+                          <span>{u.name} <span className="text-xs text-slate-500">({u.email})</span></span>
+                        </div>
+                        <Button size="sm" onClick={() => handleInvite(u)}>Invite</Button>
+                      </li>
+                    ))}
+                  {allUsers.filter(u => u.id !== user?.id && !collaboratorIds.includes(u.id)).length === 0 && (
+                    <li className="py-2 text-slate-500">No users available to invite.</li>
+                  )}
+                </ul>
+              )}
             </motion.div>
           </motion.div>
         )}
