@@ -462,15 +462,6 @@ export default function BoardPage() {
     }
   };
 
-  // Add real-time cursors via WebSocket server
-  // Use environment variable for WebSocket server URL
-  const wsUrl = process.env.NEXT_PUBLIC_WS_URL || 'wss://ai-task-hub-madhu.onrender.com'; // fallback for local dev
-  const { cursors: wsCursors, sendCursor } = useRealtimeCursors({
-    wsUrl,
-    userId: user?.id,
-    boardId
-  });
-
   if (loading) {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center">
@@ -501,6 +492,15 @@ export default function BoardPage() {
       </div>
     );
   }
+
+  // Add real-time cursors via WebSocket server
+  // Use environment variable for WebSocket server URL
+  const wsUrl = process.env.NEXT_PUBLIC_WS_URL || 'wss://ai-task-hub-madhu.onrender.com'; // fallback for local dev
+  const { cursors: wsCursors, sendCursor } = useRealtimeCursors({
+    wsUrl,
+    userId: user.id,
+    boardId
+  });
 
   const toolbarItems = [
     { id: 'select', icon: MousePointer, label: 'Select', color: 'text-slate-600', bgColor: 'hover:bg-slate-100' },

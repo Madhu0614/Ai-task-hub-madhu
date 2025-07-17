@@ -20,9 +20,15 @@ import type { CursorPosition } from '@/lib/realtime';
  */
 import { useEffect, useRef, useState, useCallback } from 'react';
 
-export function useRealtimeCursors({ wsUrl, userId, boardId }) {
-  const [cursors, setCursors] = useState({}); // { userId: { x, y } }
-  const wsRef = useRef(null);
+type UseRealtimeCursorsArgs = {
+  wsUrl: string;
+  userId: string;
+  boardId: string;
+};
+
+export function useRealtimeCursors({ wsUrl, userId, boardId }: UseRealtimeCursorsArgs) {
+  const [cursors, setCursors] = useState<{ [userId: string]: { x: number; y: number } }>({});
+  const wsRef = useRef<WebSocket | null>(null);
 
   useEffect(() => {
     const ws = new window.WebSocket(wsUrl);
@@ -51,7 +57,7 @@ export function useRealtimeCursors({ wsUrl, userId, boardId }) {
   }, [wsUrl, userId, boardId]);
 
   // Send cursor position
-  const sendCursor = useCallback((x, y) => {
+  const sendCursor = useCallback((x: number, y: number) => {
     if (wsRef.current && wsRef.current.readyState === 1) {
       wsRef.current.send(JSON.stringify({
         type: 'cursor',
