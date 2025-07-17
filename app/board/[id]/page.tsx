@@ -642,11 +642,14 @@ export default function BoardPage() {
               
               {/* Real-time collaboration cursors */}
               <CollaborationCursors 
-                cursors={Object.entries(wsCursors).map(([id, pos]) => ({
-                  x: pos.x,
-                  y: pos.y,
-                  user: { id }
-                }))} 
+                cursors={Object.entries(wsCursors).map(([id, pos]) => {
+                  const { x, y } = pos as { x: number; y: number };
+                  return {
+                    x,
+                    y,
+                    user: { id, name: id }
+                  };
+                })} 
                 zoom={zoomLevel} 
                 currentUser={user}
                 currentUserCursor={currentUserCursor || undefined}
