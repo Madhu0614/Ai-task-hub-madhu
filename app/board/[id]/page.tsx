@@ -463,7 +463,8 @@ export default function BoardPage() {
   };
 
   // Add real-time cursors via WebSocket server
-  const wsUrl = 'wss://ai-task-hub-madhu.onrender.com'; // Replace with your Render WebSocket URL
+  // Use environment variable for WebSocket server URL
+  const wsUrl = process.env.NEXT_PUBLIC_WS_URL || 'wss://ai-task-hub-madhu.onrender.com'; // fallback for local dev
   const { cursors: wsCursors, sendCursor } = useRealtimeCursors({
     wsUrl,
     userId: user?.id,

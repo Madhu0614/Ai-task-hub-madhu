@@ -73,6 +73,8 @@ export class RealtimeCollaboration {
 
   // Update cursor position
   async updateCursor(x: number, y: number) {
+    console.log('Updating cursor position:', { x, y, boardId: this.boardId, userId: this.userId });
+    
     const { error } = await supabase
       .from('user_cursors')
       .upsert({
@@ -80,10 +82,14 @@ export class RealtimeCollaboration {
         user_id: this.userId,
         x,
         y,
+      }, {
+        onConflict: 'board_id,user_id'
       });
 
     if (error) {
       console.error('Error updating cursor:', error);
+    } else {
+      console.log('Cursor position updated successfully');
     }
   }
 
