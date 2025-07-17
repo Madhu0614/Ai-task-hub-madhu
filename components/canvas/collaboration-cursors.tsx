@@ -4,6 +4,76 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import type { CursorPosition } from '@/lib/realtime';
 
+/**
+ * useRealtimeCursors React hook
+ * Usage:
+ * const { cursors, sendCursor } = useRealtimeCursors({
+ *   wsUrl: 'wss://your-ws-server.onrender.com',
+ *   userId,
+ *   boardId
+ * });
+ *
+ * // In your mouse move handler:
+ * sendCursor(x, y);
+ *
+ * // Render all cursors from the 'cursors' state
+ */
+import { useEffect, useRef, useState, useCallback } from 'react';
+
+export function useRealtimeCursors({ wsUrl, userId, boardId }) {
+  const [cursors, setCursors] = useState({}); // { userId: { x, y } }
+  const wsRef = useRef(null);
+
+  useEffect(() => {
+    const ws = new window.WebSocket(wsUrl);
+    wsRef.current = ws;
+
+    ws.onopen = () => {
+      // Optionally send a join message
+    };
+
+    ws.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        if (data.type === 'cursor' && data.boardId === boardId && data.userId !== userId) {
+          setCursors(prev => ({ ...prev, [data.userId]: { x: data.x, y: data.y } }));
+        }
+      } catch {}
+    };
+
+    ws.onclose = () => {
+      // Optionally handle disconnect
+    };
+
+    return () => {
+      ws.close();
+    };
+  }, [wsUrl, userId, boardId]);
+
+  // Send cursor position
+  const sendCursor = useCallback((x, y) => {
+    if (wsRef.current && wsRef.current.readyState === 1) {
+      wsRef.current.send(JSON.stringify({
+        type: 'cursor',
+        userId,
+        boardId,
+        x,
+        y
+      }));
+    }
+  }, [userId, boardId]);
+
+  return { cursors, sendCursor };
+}
+
+// Example usage in a component:
+// const { cursors, sendCursor } = useRealtimeCursors({ wsUrl, userId, boardId });
+// <div onMouseMove={e => sendCursor(e.clientX, e.clientY)}>
+//   {Object.entries(cursors).map(([id, pos]) => (
+//     <Cursor key={id} x={pos.x} y={pos.y} />
+//   ))}
+// </div>
+
 interface CollaborationCursorsProps {
   cursors: CursorPosition[];
   zoom: number;

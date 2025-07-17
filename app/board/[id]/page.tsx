@@ -21,6 +21,7 @@ import GridCanvas from '@/components/canvas/grid-canvas';
 import CanvasElement from '@/components/canvas/canvas-element';
 import CollaborationCursors from '@/components/canvas/collaboration-cursors';
 import { useToast } from '@/hooks/use-toast';
+import { useRealtimeCursors } from '@/components/canvas/collaboration-cursors';
 
 interface KanbanColumn {
   id: string;
@@ -461,6 +462,14 @@ export default function BoardPage() {
     }
   };
 
+  // Add real-time cursors via WebSocket server
+  const wsUrl = 'wss://ai-task-hub-madhu.onrender.com'; // Replace with your Render WebSocket URL
+  const { cursors: wsCursors, sendCursor } = useRealtimeCursors({
+    wsUrl,
+    userId: user?.id,
+    boardId
+  });
+
   if (loading) {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center">
@@ -606,7 +615,12 @@ export default function BoardPage() {
             <div 
               className="w-full h-full relative"
               onClick={handleCanvasClick}
-              onMouseMove={handleMouseMove}
+              onMouseMove={e => {
+                handleMouseMove(e);
+                if (user && boardId) {
+                  sendCursor(e.nativeEvent.offsetX, e.nativeEvent.offsetY);
+                }
+              }}
               style={{ cursor: selectedTool === 'pen' ? 'crosshair' : selectedTool === 'hand' ? 'grab' : 'default' }}
             >
               <AnimatePresence>
@@ -627,7 +641,11 @@ export default function BoardPage() {
               
               {/* Real-time collaboration cursors */}
               <CollaborationCursors 
-                cursors={cursors} 
+                cursors={Object.entries(wsCursors).map(([id, pos]) => ({
+                  x: pos.x,
+                  y: pos.y,
+                  user: { id }
+                }))} 
                 zoom={zoomLevel} 
                 currentUser={user}
                 currentUserCursor={currentUserCursor || undefined}
