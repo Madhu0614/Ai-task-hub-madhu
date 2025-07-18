@@ -257,7 +257,7 @@ export default function BoardsTable({ boards, currentUser, onBoardsChange }: Boa
                   </td>
                   <td className="py-4 px-6">
                     <span className="text-sm text-slate-900">
-                      {board.profiles?.name || 'Unknown'}
+                      {board.user_list?.name || 'Unknown'}
                     </span>
                   </td>
                   <td className="py-4 px-6">

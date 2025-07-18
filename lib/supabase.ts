@@ -43,7 +43,12 @@ export interface Board {
   thumbnail?: string;
   created_at: string;
   updated_at: string;
-  profiles?: Profile;
+  user_list?: {
+    id: string;
+    name: string;
+    email: string;
+    avatar_url?: string;
+  };
 }
 
 export interface BoardElement {
@@ -91,7 +96,7 @@ export const testConnection = async () => {
     console.log('Supabase URL:', supabaseUrl);
     console.log('Supabase Key:', supabaseAnonKey ? 'Present' : 'Missing');
     
-    const { data, error } = await supabase.from('profiles').select('count').limit(1);
+    const { data, error } = await supabase.from('user_list').select('count').limit(1);
     
     if (error) {
       console.error('Supabase connection test failed:', error);

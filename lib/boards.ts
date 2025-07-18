@@ -69,7 +69,7 @@ export const boardService = {
       
       // Test basic connection
       const { data: testData, error: testError } = await supabase
-        .from('profiles')
+        .from('user_list')
         .select('count')
         .limit(1);
 
@@ -125,7 +125,7 @@ export const boardService = {
         .from('boards')
         .select(`
           *,
-          profiles:owner_id (
+          user_list:owner_id (
             id,
             name,
             email,
@@ -147,7 +147,7 @@ export const boardService = {
           board_id,
           boards:board_id (
             *,
-            profiles:owner_id (
+            user_list:owner_id (
               id,
               name,
               email,
@@ -201,7 +201,7 @@ export const boardService = {
         .from('boards')
         .select(`
           *,
-          profiles:owner_id (
+          user_list:owner_id (
             id,
             name,
             email,
@@ -258,7 +258,7 @@ export const boardService = {
 
       // Ensure the user's profile exists
       const { data: profile, error: profileError } = await supabase
-        .from('profiles')
+        .from('user_list')
         .select('id, name')
         .eq('id', user.id)
         .single();
@@ -289,7 +289,7 @@ export const boardService = {
         .insert(boardData)
         .select(`
           *,
-          profiles:owner_id (
+          user_list:owner_id (
             id,
             name,
             email,
@@ -335,7 +335,7 @@ export const boardService = {
         .eq('id', boardId)
         .select(`
           *,
-          profiles:owner_id (
+          user_list:owner_id (
             id,
             name,
             email,
@@ -514,7 +514,7 @@ export const boardService = {
         .from('board_collaborators')
         .select(`
           *,
-          profiles:user_id (
+          user_list:user_id (
             id,
             name,
             email,
@@ -543,14 +543,14 @@ export const boardService = {
         throw new Error(connectionTest.error);
       }
 
-      // First find the user by email
-      const { data: profile, error: profileError } = await supabase
-        .from('profiles')
+      // First find the user by email in user_list
+      const { data: user, error: userError } = await supabase
+        .from('user_list')
         .select('id')
         .eq('email', userEmail.trim().toLowerCase())
         .single();
 
-      if (profileError || !profile) {
+      if (userError || !user) {
         throw new Error('User not found with that email address');
       }
 
@@ -559,7 +559,7 @@ export const boardService = {
         .from('board_collaborators')
         .select('id')
         .eq('board_id', boardId)
-        .eq('user_id', profile.id)
+        .eq('user_id', user.id)
         .single();
 
       if (existingCollaborator) {
@@ -570,12 +570,12 @@ export const boardService = {
         .from('board_collaborators')
         .insert({
           board_id: boardId,
-          user_id: profile.id,
+          user_id: user.id,
           role,
         })
         .select(`
           *,
-          profiles:user_id (
+          user_list:user_id (
             id,
             name,
             email,

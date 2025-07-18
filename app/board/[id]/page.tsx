@@ -163,7 +163,8 @@ export default function BoardPage() {
     try {
       await boardService.addCollaborator(boardId, user.email);
       setShowInviteModal(false);
-      // Optionally, refresh collaborators list here
+      // Refresh collaborators list after inviting
+      boardService.getCollaborators(boardId).then(setCollaborators);
     } catch (err: any) {
       setInviteError(err.message || 'Failed to invite user');
     }
@@ -760,6 +761,34 @@ export default function BoardPage() {
             >
               <h3 className="text-lg font-semibold text-slate-900 mb-4">Invite Collaborators</h3>
               {inviteError && <div className="text-red-500 mb-2">{inviteError}</div>}
+              {/* Manual email entry */}
+              <div className="mb-4">
+                <label htmlFor="invite-email" className="block text-sm font-medium text-slate-700 mb-1">Invite by email</label>
+                <div className="flex gap-2">
+                  <Input
+                    id="invite-email"
+                    type="email"
+                    placeholder="Enter email address"
+                    value={inviteEmails[0]}
+                    onChange={e => updateInviteEmail(0, e.target.value)}
+                    className="flex-1"
+                  />
+                  <Button
+                    size="sm"
+                    onClick={async () => {
+                      const email = inviteEmails[0].trim();
+                      if (!email || !email.includes('@')) {
+                        setInviteError('Please enter a valid email address');
+                        return;
+                      }
+                      await handleInvite({ email });
+                    }}
+                  >
+                    Invite
+                  </Button>
+                </div>
+              </div>
+              <Separator className="my-4" />
               {loadingUsers ? (
                 <div>Loading users...</div>
               ) : (

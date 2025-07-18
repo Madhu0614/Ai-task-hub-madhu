@@ -32,7 +32,7 @@ export default function RealtimeTest({ boardId, userId, realtimeRef }: RealtimeT
       // Test 1: Check if we can connect to Supabase
       addTestResult('Testing Supabase connection...');
       const { data: testData, error: testError } = await supabase
-        .from('profiles')
+        .from('user_list')
         .select('count')
         .limit(1);
       

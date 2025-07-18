@@ -26,7 +26,7 @@ const profileToUser = (profile: Profile): User => ({
 
 export const signUp = async (email: string, password: string, name: string): Promise<User> => {
   try {
-    // First, sign up the user
+    // 1. Sign up the user with Supabase Auth
     const { data: authData, error: authError } = await supabase.auth.signUp({
       email,
       password,
@@ -45,53 +45,28 @@ export const signUp = async (email: string, password: string, name: string): Pro
       throw new Error('Failed to create user account');
     }
 
-    // Wait a moment for the trigger to execute
-    await new Promise(resolve => setTimeout(resolve, 1000));
-
-    // Check if profile was created by trigger, if not create manually
-    let profile;
+    // 2. Insert into user_list table (do not block signup if this fails)
     try {
-      const { data: existingProfile, error: profileError } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', authData.user.id)
-        .single();
-
-      if (profileError && profileError.code !== 'PGRST116') {
-        throw profileError;
-      }
-
-      profile = existingProfile;
-    } catch (error) {
-      console.log('Profile not found, creating manually...');
-    }
-
-    // If profile doesn't exist, create it manually
-    if (!profile) {
-      const { data: newProfile, error: createError } = await supabase
-        .from('profiles')
+      await supabase
+        .from('user_list')
         .insert({
           id: authData.user.id,
           email: authData.user.email!,
           name: name,
-          team: 'Personal',
-        })
-        .select('*')
-        .single();
-
-      if (createError) {
-        console.error('Error creating profile manually:', createError);
-        throw new Error(`Failed to create user profile: ${createError.message}`);
-      }
-
-      profile = newProfile;
+          avatar_url: authData.user.user_metadata?.avatar_url || null,
+        });
+    } catch (userListError) {
+      console.error('Error inserting into user_list:', userListError);
     }
 
-    if (!profile) {
-      throw new Error('Failed to create or retrieve user profile');
-    }
-
-    return profileToUser(profile);
+    // 3. Return the user data from Auth
+    return {
+      id: authData.user.id,
+      email: authData.user.email!,
+      name: name,
+      avatar_url: authData.user.user_metadata?.avatar_url || null,
+      team: 'Personal',
+    };
   } catch (error) {
     console.error('SignUp error:', error);
     throw error;

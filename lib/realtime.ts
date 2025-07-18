@@ -99,7 +99,7 @@ export class RealtimeCollaboration {
       .from('user_cursors')
       .select(`
         *,
-        profiles:user_id (
+        user_list:user_id (
           id,
           name,
           avatar_url
@@ -117,9 +117,9 @@ export class RealtimeCollaboration {
       x: cursor.x,
       y: cursor.y,
       user: {
-        id: cursor.profiles.id,
-        name: cursor.profiles.name,
-        avatar_url: cursor.profiles.avatar_url,
+        id: cursor.user_list.id,
+        name: cursor.user_list.name,
+        avatar_url: cursor.user_list.avatar_url,
       },
     }));
 
