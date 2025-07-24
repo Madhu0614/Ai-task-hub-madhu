@@ -189,15 +189,26 @@ export default function CanvasElement({
 
   // Add event listeners when dragging or resizing
   useEffect(() => {
-    if (isDragging || isResizing) {
-      document.addEventListener('mousemove', handleMouseMove);
-      document.addEventListener('mouseup', handleMouseUp);
+    if (isDragging) {
+      const handleMove = (e: MouseEvent) => {
+        if (!locked && isDragging && onUpdate && isSelected) {
+          onUpdate(id, {
+            x: e.clientX - dragOffset.x,
+            y: e.clientY - dragOffset.y
+          });
+        }
+      };
+      const handleUp = () => {
+        setIsDragging(false);
+      };
+      document.addEventListener('mousemove', handleMove);
+      document.addEventListener('mouseup', handleUp);
       return () => {
-        document.removeEventListener('mousemove', handleMouseMove);
-        document.removeEventListener('mouseup', handleMouseUp);
+        document.removeEventListener('mousemove', handleMove);
+        document.removeEventListener('mouseup', handleUp);
       };
     }
-  }, [isDragging, isResizing, dragOffset, resizeHandle]);
+  }, [isDragging, dragOffset, locked, onUpdate, id, isSelected]);
 
   // Render connection lines
   const renderConnections = () => {

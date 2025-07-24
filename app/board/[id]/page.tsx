@@ -582,12 +582,20 @@ export default function BoardPage() {
       {/* Header */}
       <header className="bg-white border-b border-slate-200 px-4 py-2 flex items-center justify-between shadow-sm">
         <div className="flex items-center space-x-4">
-          <div className="flex items-center space-x-3">
+          {/* Make the logo clickable */}
+          <button
+            type="button"
+            onClick={() => router.push('/dashboard')}
+            className="flex items-center space-x-3 focus:outline-none focus:ring-2 focus:ring-blue-400 rounded"
+            style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}
+            tabIndex={0}
+            aria-label="Go to dashboard"
+          >
             <div className="w-6 h-6 bg-gradient-to-br from-blue-500 to-violet-600 rounded flex items-center justify-center">
               <span className="text-white text-xs font-bold">M</span>
             </div>
             <span className="font-bold text-lg text-slate-900">miro</span>
-          </div>
+          </button>
           
           <div className="flex items-center space-x-2">
             <div className="w-4 h-4 text-blue-500">🚀</div>
@@ -595,38 +603,21 @@ export default function BoardPage() {
           </div>
         </div>
 
-        <div className="flex items-center space-x-3">
-          <Button 
-            variant="outline" 
-            size="sm" 
-            onClick={() => setShowInviteModal(true)}
-            className="text-slate-700 border-slate-300 hover:bg-slate-50"
-          >
-            <UserPlus className="h-4 w-4 mr-2" />
-            Invite
-          </Button>
-          
-          <div className="flex items-center space-x-2">
-            <div className="flex -space-x-1">
-              {cursors.slice(0, 3).map((cursor, i) => (
-                <Avatar key={cursor.user.id} className="w-8 h-8 border-2 border-white">
-                  <AvatarFallback className="text-white text-xs bg-blue-500">
-                    {cursor.user.name.substring(0, 2).toUpperCase()}
-                  </AvatarFallback>
-                </Avatar>
-              ))}
-            </div>
-            {cursors.length > 3 && (
-              <span className="text-xs text-slate-500 bg-slate-100 px-2 py-1 rounded-full">
-                +{cursors.length - 3}
-              </span>
-            )}
+        <div className="flex items-center space-x-2">
+          <div className="flex -space-x-1">
+            {cursors.slice(0, 3).map((cursor, i) => (
+              <Avatar key={cursor.user.id} className="w-8 h-8 border-2 border-white">
+                <AvatarFallback className="text-white text-xs bg-blue-500">
+                  {cursor.user.name.substring(0, 2).toUpperCase()}
+                </AvatarFallback>
+              </Avatar>
+            ))}
           </div>
-          
-          <Button size="sm" className="bg-blue-600 hover:bg-blue-700 text-white shadow-sm">
-            <Share2 className="h-4 w-4 mr-2" />
-            Share
-          </Button>
+          {cursors.length > 3 && (
+            <span className="text-xs text-slate-500 bg-slate-100 px-2 py-1 rounded-full">
+              +{cursors.length - 3}
+            </span>
+          )}
         </div>
       </header>
 
@@ -635,7 +626,7 @@ export default function BoardPage() {
         <motion.div 
           initial={{ x: -50, opacity: 0 }}
           animate={{ x: 0, opacity: 1 }}
-          transition={{ duration: 0.3 }}
+          transition={{ duration: 0.1 }}
           className="w-14 bg-white border-r border-slate-200 flex flex-col items-center py-4 space-y-1 shadow-sm"
         >
           {toolbarItems.map((tool, index) => {
@@ -647,7 +638,7 @@ export default function BoardPage() {
                 key={tool.id}
                 initial={{ opacity: 0, scale: 0.8 }}
                 animate={{ opacity: 1, scale: 1 }}
-                transition={{ duration: 0.2, delay: index * 0.05 }}
+                transition={{ duration: 0.1, delay: index * 0.02 }}
                 whileHover={{ scale: 1.1, y: -2 }}
                 whileTap={{ scale: 0.95 }}
                 onClick={() => setSelectedTool(tool.id)}
@@ -716,7 +707,7 @@ export default function BoardPage() {
           <motion.div 
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
-            transition={{ delay: 0.3 }}
+            transition={{ delay: 0.1 }}
             className="absolute bottom-6 right-6 flex items-center space-x-2 bg-white/95 backdrop-blur-sm rounded-xl border border-slate-200 shadow-lg px-4 py-3"
           >
             <Button
@@ -749,6 +740,7 @@ export default function BoardPage() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
+            transition={{ duration: 0.1 }}
             className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
             onClick={() => setShowInviteModal(false)}
           >
@@ -756,6 +748,7 @@ export default function BoardPage() {
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.9, opacity: 0 }}
+              transition={{ duration: 0.1 }}
               className="bg-white rounded-xl p-6 w-full max-w-md mx-4"
               onClick={(e) => e.stopPropagation()}
             >

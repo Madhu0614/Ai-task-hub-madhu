@@ -20,6 +20,26 @@ import type { CursorPosition } from '@/lib/realtime';
  */
 import { useEffect, useRef, useState, useCallback } from 'react';
 
+function throttle<T extends (...args: any[]) => void>(func: T, limit: number): T {
+  let inThrottle = false;
+  let lastArgs: any[] = [];
+  return function(this: any, ...args: any[]) {
+    if (!inThrottle) {
+      func.apply(this, args);
+      inThrottle = true;
+      setTimeout(() => {
+        inThrottle = false;
+        if (lastArgs.length) {
+          func.apply(this, lastArgs);
+          lastArgs = [];
+        }
+      }, limit);
+    } else {
+      lastArgs = args;
+    }
+  } as T;
+}
+
 type UseRealtimeCursorsArgs = {
   wsUrl: string;
   userId: string;
@@ -29,7 +49,7 @@ type UseRealtimeCursorsArgs = {
 };
 
 export function useRealtimeCursors({ wsUrl, userId, userName, avatarUrl, boardId }: UseRealtimeCursorsArgs) {
-  const [cursors, setCursors] = useState<{ [userId: string]: { x: number; y: number; userName: string; avatarUrl?: string } }>({});
+  const [cursors, setCursors] = useState<{ [userId: string]: { x: number; y: number; userName: string; avatarUrl?: string; lastUpdate: number } }>({});
   const wsRef = useRef<WebSocket | null>(null);
 
   useEffect(() => {
@@ -51,7 +71,8 @@ export function useRealtimeCursors({ wsUrl, userId, userName, avatarUrl, boardId
               x: data.x,
               y: data.y,
               userName: data.userName,
-              avatarUrl: data.avatarUrl
+              avatarUrl: data.avatarUrl,
+              lastUpdate: Date.now()
             }
           }));
         }
@@ -67,8 +88,25 @@ export function useRealtimeCursors({ wsUrl, userId, userName, avatarUrl, boardId
     };
   }, [wsUrl, userId, boardId]);
 
+  // Cleanup inactive cursors
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setCursors(prev => {
+        const now = Date.now();
+        const filtered: typeof prev = {};
+        for (const [id, cursor] of Object.entries(prev)) {
+          if (now - cursor.lastUpdate < 10000) {
+            filtered[id] = cursor;
+          }
+        }
+        return filtered;
+      });
+    }, 5000);
+    return () => clearInterval(interval);
+  }, []);
+
   // Send cursor position
-  const sendCursor = useCallback((x: number, y: number) => {
+  const throttledSendCursor = useCallback(throttle((x: number, y: number) => {
     if (!userId || !boardId) return;
     if (wsRef.current && wsRef.current.readyState === 1) {
       wsRef.current.send(JSON.stringify({
@@ -81,9 +119,9 @@ export function useRealtimeCursors({ wsUrl, userId, userName, avatarUrl, boardId
         y
       }));
     }
-  }, [userId, userName, avatarUrl, boardId]);
+  }, 16), [userId, boardId, userName, avatarUrl]);
 
-  return { cursors, sendCursor };
+  return { cursors, sendCursor: throttledSendCursor };
 }
 
 export function useRealtimeBoard({ wsUrl, userId, boardId, setElements }: {
@@ -264,77 +302,35 @@ export default function CollaborationCursors({
         )}
 
         {/* Other Users' Cursors */}
-        {cursors.map((cursor, index) => {
-          const color = cursorColors[index % cursorColors.length];
-          
+        {cursors.map((cursor, i) => {
+          if (currentUser && cursor.user.id === currentUser.id) return null;
+          const color = cursorColors[i % cursorColors.length];
           return (
             <motion.div
               key={cursor.user.id}
-              initial={{ opacity: 0, scale: 0 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0 }}
-              transition={{ duration: 0.2 }}
-              className="absolute"
-              style={{
+              className="pointer-events-none absolute z-50"
+              animate={{
                 left: cursor.x * (zoom / 100),
-                top: cursor.y * (zoom / 100),
-                transform: 'translate(-2px, -2px)',
+                top: cursor.y * (zoom / 100)
+              }}
+              transition={{ type: 'tween', duration: 0.08 }}
+              style={{
+                transform: 'translate(-50%, -50%)',
               }}
             >
-              {/* Cursor */}
-              <motion.div
-                animate={{
-                  x: [0, 2, 0],
-                  y: [0, 2, 0],
-                }}
-                transition={{
-                  duration: 2,
-                  repeat: Infinity,
-                  ease: "easeInOut",
-                }}
-                className="relative"
-              >
-                <svg
-                  width="24"
-                  height="24"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  className="drop-shadow-lg"
-                >
-                  <path
-                    d="M5.65376 12.3673H5.46026L5.31717 12.4976L0.500002 16.8829L0.500002 1.19841L11.7841 12.3673H5.65376Z"
-                    fill={color}
-                    stroke="white"
-                    strokeWidth="1"
-                  />
-                </svg>
-              </motion.div>
-
-              {/* User info with name prominently displayed */}
-              <motion.div
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.1 }}
-                className="absolute top-6 left-2 flex items-center space-x-2 bg-white/95 backdrop-blur-sm rounded-lg px-3 py-2 shadow-lg border border-slate-200 min-w-max"
-                style={{ borderLeftColor: color, borderLeftWidth: '3px' }}
-              >
-                <Avatar className="w-6 h-6">
-                  <AvatarImage src={cursor.user.avatar_url} alt={cursor.user.name} />
-                  <AvatarFallback 
-                    className="text-white text-xs font-medium"
-                    style={{ backgroundColor: color }}
-                  >
-                    {cursor.user.name.substring(0, 2).toUpperCase()}
-                  </AvatarFallback>
+              <div className="flex items-center space-x-1">
+                <span
+                  className="w-3 h-3 rounded-full border-2 border-white shadow"
+                  style={{ background: color }}
+                />
+                <Avatar className="w-6 h-6 border-2 border-white shadow">
+                  <AvatarFallback>{cursor.user.name?.substring(0,2).toUpperCase()}</AvatarFallback>
+                  {cursor.user.avatar_url && <AvatarImage src={cursor.user.avatar_url} alt={cursor.user.name} />}
                 </Avatar>
-                <span className="text-sm font-medium text-slate-900 whitespace-nowrap">
+                <span className="bg-white/90 px-2 py-0.5 rounded text-xs font-medium text-slate-700 shadow border border-slate-200">
                   {cursor.user.name}
                 </span>
-                <div 
-                  className="w-2 h-2 rounded-full animate-pulse"
-                  style={{ backgroundColor: color }}
-                />
-              </motion.div>
+              </div>
             </motion.div>
           );
         })}

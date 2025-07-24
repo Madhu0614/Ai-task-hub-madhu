@@ -37,46 +37,28 @@ export default function Header({ user }: HeaderProps) {
     <motion.header
       initial={{ y: -20, opacity: 0 }}
       animate={{ y: 0, opacity: 1 }}
-      transition={{ duration: 0.3 }}
+      transition={{ duration: 0.1 }}
       className="bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between shadow-sm"
     >
       {/* Logo */}
       <div className="flex items-center space-x-4">
-        <div className="flex items-center space-x-3">
+        <motion.div
+          initial={{ y: -20, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          transition={{ duration: 0.1 }}
+          className="flex items-center space-x-3"
+        >
           <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-violet-600 rounded-xl flex items-center justify-center shadow-lg">
             <span className="text-white font-bold text-sm">M</span>
           </div>
           <span className="text-xl font-bold text-slate-900">miro</span>
           <span className="text-xs bg-gradient-to-r from-blue-100 to-violet-100 text-blue-700 px-3 py-1 rounded-full font-medium">Free</span>
-        </div>
+        </motion.div>
       </div>
 
       {/* Right Actions */}
       <div className="flex items-center space-x-3">
-        <Button
-          variant="outline"
-          size="sm"
-          className="text-slate-700 border-slate-300 hover:bg-slate-50 hover:border-slate-400 transition-all duration-200"
-        >
-          <UserPlus className="h-4 w-4 mr-2" />
-          Invite members
-        </Button>
-        
-        <Button
-          size="sm"
-          className="bg-gradient-to-r from-blue-500 to-violet-600 hover:from-blue-600 hover:to-violet-700 text-white shadow-lg hover:shadow-xl transition-all duration-200"
-        >
-          <Zap className="h-4 w-4 mr-2" />
-          Upgrade
-        </Button>
 
-        <Button
-          variant="ghost"
-          size="sm"
-          className="p-2 hover:bg-slate-100 rounded-xl transition-colors"
-        >
-          <Grid3x3 className="h-5 w-5 text-slate-600" />
-        </Button>
 
         <Button
           variant="ghost"
