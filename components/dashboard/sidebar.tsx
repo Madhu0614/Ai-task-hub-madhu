@@ -11,7 +11,8 @@ import {
   Compass,
   ChevronDown,
   Settings,
-  Users
+  Users,
+  Bell
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -159,6 +160,17 @@ export default function Sidebar({ user, currentPage, onPageChange }: SidebarProp
 
       {/* Bottom Actions */}
       <div className="p-4 border-t border-slate-100 space-y-2">
+        {/* Notification Button for Invites */}
+        <Button
+          variant="ghost"
+          className="w-full justify-start text-slate-700 hover:text-slate-900 hover:bg-slate-50 rounded-xl transition-all duration-200 relative"
+          onClick={() => {/* TODO: open notification modal */}}
+        >
+          <Bell className="h-4 w-4 mr-3" />
+          <span className="text-sm">Notifications</span>
+          {/* Example badge for unread notifications */}
+          <span className="absolute right-4 top-2 bg-red-500 text-white text-xs rounded-full px-1.5 py-0.5">1</span>
+        </Button>
         <Button
           variant="ghost"
           className="w-full justify-start text-slate-700 hover:text-slate-900 hover:bg-slate-50 rounded-xl transition-all duration-200"

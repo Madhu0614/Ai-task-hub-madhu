@@ -134,6 +134,12 @@ export default function BoardPage() {
   const [inviteError, setInviteError] = useState<string | null>(null);
   const [collaborators, setCollaborators] = useState<any[]>([]);
 
+  // Add state for notification modal
+  const [showNotificationModal, setShowNotificationModal] = useState(false);
+  const [pendingInvites, setPendingInvites] = useState<any[]>([]);
+  const [loadingInvites, setLoadingInvites] = useState(false);
+  const [inviteActionError, setInviteActionError] = useState<string | null>(null);
+
   // Fetch collaborators after loading the board
   useEffect(() => {
     if (board) {
@@ -154,6 +160,18 @@ export default function BoardPage() {
     }
   }, [showInviteModal]);
 
+  // Fetch pending invites when modal is opened
+  useEffect(() => {
+    if (showNotificationModal) {
+      setLoadingInvites(true);
+      setInviteActionError(null);
+      boardService.getPendingInvites()
+        .then(setPendingInvites)
+        .catch(err => setInviteActionError(err.message || 'Failed to load invites'))
+        .finally(() => setLoadingInvites(false));
+    }
+  }, [showNotificationModal]);
+
   // Get current collaborators' user IDs
   const collaboratorIds = collaborators.map((c: any) => c.user_id);
 
@@ -161,12 +179,32 @@ export default function BoardPage() {
   async function handleInvite(user: any) {
     setInviteError(null);
     try {
-      await boardService.addCollaborator(boardId, user.email);
+      await boardService.inviteUser(boardId, user.email);
       setShowInviteModal(false);
       // Refresh collaborators list after inviting
       boardService.getCollaborators(boardId).then(setCollaborators);
     } catch (err: any) {
       setInviteError(err.message || 'Failed to invite user');
+    }
+  }
+
+  async function handleAcceptInvite(inviteId: string) {
+    setInviteActionError(null);
+    try {
+      await boardService.acceptInvite(inviteId);
+      setPendingInvites(invites => invites.filter(inv => inv.id !== inviteId));
+    } catch (err: any) {
+      setInviteActionError(err.message || 'Failed to accept invite');
+    }
+  }
+
+  async function handleRejectInvite(inviteId: string) {
+    setInviteActionError(null);
+    try {
+      await boardService.rejectInvite(inviteId);
+      setPendingInvites(invites => invites.filter(inv => inv.id !== inviteId));
+    } catch (err: any) {
+      setInviteActionError(err.message || 'Failed to reject invite');
     }
   }
 
@@ -497,7 +535,7 @@ export default function BoardPage() {
 
     try {
       const results = await Promise.allSettled(
-        validEmails.map(email => boardService.addCollaborator(boardId, email.trim()))
+        validEmails.map(email => boardService.inviteUser(boardId, email.trim()))
       );
 
       const successful = results.filter(result => result.status === 'fulfilled').length;
@@ -627,12 +665,11 @@ export default function BoardPage() {
           initial={{ x: -50, opacity: 0 }}
           animate={{ x: 0, opacity: 1 }}
           transition={{ duration: 0.1 }}
-          className="w-14 bg-white border-r border-slate-200 flex flex-col items-center py-4 space-y-1 shadow-sm"
+          className="w-14 bg-white border-r border-slate-200 flex flex-col items-center py-4 space-y-1 shadow-sm relative"
         >
           {toolbarItems.map((tool, index) => {
             const Icon = tool.icon;
             const isSelected = selectedTool === tool.id;
-            
             return (
               <motion.button
                 key={tool.id}
@@ -653,6 +690,26 @@ export default function BoardPage() {
               </motion.button>
             );
           })}
+          {/* Invite button at the bottom of the toolbar */}
+          <Button
+            variant="outline"
+            size="icon"
+            className="absolute bottom-4 left-1/2 -translate-x-1/2 w-10 h-10 rounded-xl text-blue-600 border-blue-200 hover:bg-blue-50 shadow"
+            onClick={() => setShowInviteModal(true)}
+            title="Invite to Board"
+          >
+            <UserPlus className="h-5 w-5" />
+          </Button>
+          {/* Notification button at the bottom of the toolbar */}
+          <Button
+            variant="outline"
+            size="icon"
+            className="absolute bottom-4 left-1/2 -translate-x-1/2 w-10 h-10 rounded-xl text-blue-600 border-blue-200 hover:bg-blue-50 shadow"
+            onClick={() => setShowNotificationModal(true)}
+            title="Pending Invites"
+          >
+            <Users className="h-5 w-5" />
+          </Button>
         </motion.div>
 
         {/* Main Canvas Area */}
@@ -733,72 +790,88 @@ export default function BoardPage() {
         </div>
       </div>
 
-      {/* Enhanced Invite Modal */}
+      {/* Enhanced Invite Modal (Dialog version, multi-email) */}
       <AnimatePresence>
         {showInviteModal && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            transition={{ duration: 0.1 }}
+            className="fixed inset-0 bg-black/30 backdrop-blur-sm z-50 flex items-center justify-center"
+          >
+            <Dialog open={showInviteModal} onOpenChange={setShowInviteModal}>
+              <DialogContent className="max-w-md w-full">
+                <DialogHeader>Invite Collaborators</DialogHeader>
+                <div className="space-y-3 mt-4">
+                  {inviteEmails.map((email, index) => (
+                    <div key={index} className="flex space-x-2 items-center">
+                      <Input
+                        type="email"
+                        placeholder="email@example.com"
+                        value={email}
+                        onChange={(e) => updateInviteEmail(index, e.target.value)}
+                      />
+                      {inviteEmails.length > 1 && (
+                        <Button variant="ghost" size="icon" onClick={() => removeInviteEmail(index)}>
+                          <X className="w-4 h-4" />
+                        </Button>
+                      )}
+                    </div>
+                  ))}
+                  <Button variant="ghost" size="sm" onClick={addInviteEmail}>
+                    + Add another email
+                  </Button>
+                  {inviteError && <p className="text-red-500 text-sm">{inviteError}</p>}
+                </div>
+
+                <div className="mt-4 flex justify-end space-x-2">
+                  <Button variant="outline" onClick={() => setShowInviteModal(false)}>Cancel</Button>
+                  <Button onClick={handleInviteCollaborators}>Send Invites</Button>
+                </div>
+              </DialogContent>
+            </Dialog>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Notification Modal */}
+      <AnimatePresence>
+        {showNotificationModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
             className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
-            onClick={() => setShowInviteModal(false)}
+            onClick={() => setShowNotificationModal(false)}
           >
             <motion.div
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.9, opacity: 0 }}
-              transition={{ duration: 0.1 }}
               className="bg-white rounded-xl p-6 w-full max-w-md mx-4"
-              onClick={(e) => e.stopPropagation()}
+              onClick={e => e.stopPropagation()}
             >
-              <h3 className="text-lg font-semibold text-slate-900 mb-4">Invite Collaborators</h3>
-              {inviteError && <div className="text-red-500 mb-2">{inviteError}</div>}
-              {/* Manual email entry */}
-              <div className="mb-4">
-                <label htmlFor="invite-email" className="block text-sm font-medium text-slate-700 mb-1">Invite by email</label>
-                <div className="flex gap-2">
-                  <Input
-                    id="invite-email"
-                    type="email"
-                    placeholder="Enter email address"
-                    value={inviteEmails[0]}
-                    onChange={e => updateInviteEmail(0, e.target.value)}
-                    className="flex-1"
-                  />
-                  <Button
-                    size="sm"
-                    onClick={async () => {
-                      const email = inviteEmails[0].trim();
-                      if (!email || !email.includes('@')) {
-                        setInviteError('Please enter a valid email address');
-                        return;
-                      }
-                      await handleInvite({ email });
-                    }}
-                  >
-                    Invite
-                  </Button>
-                </div>
-              </div>
-              <Separator className="my-4" />
-              {loadingUsers ? (
-                <div>Loading users...</div>
+              <h3 className="text-lg font-semibold text-slate-900 mb-4">Pending Invites</h3>
+              {inviteActionError && <div className="text-red-500 mb-2">{inviteActionError}</div>}
+              {loadingInvites ? (
+                <div>Loading invites...</div>
               ) : (
                 <ul className="max-h-64 overflow-y-auto divide-y">
-                  {allUsers
-                    .filter(u => u.id !== user?.id && !collaboratorIds.includes(u.id))
-                    .map(u => (
-                      <li key={u.id} className="flex items-center justify-between py-2">
-                        <div className="flex items-center gap-2">
-                          <Avatar className="w-7 h-7"><AvatarFallback>{u.name?.substring(0,2).toUpperCase()}</AvatarFallback></Avatar>
-                          <span>{u.name} <span className="text-xs text-slate-500">({u.email})</span></span>
+                  {pendingInvites.length === 0 ? (
+                    <li className="py-2 text-slate-500">No pending invites.</li>
+                  ) : (
+                    pendingInvites.map(invite => (
+                      <li key={invite.id} className="flex items-center justify-between py-2">
+                        <div className="flex flex-col">
+                          <span className="font-medium text-slate-900">{invite.boards?.name || 'Board'}</span>
+                          <span className="text-xs text-slate-500">Invited by {invite.user_list?.name || 'Someone'}</span>
                         </div>
-                        <Button size="sm" onClick={() => handleInvite(u)}>Invite</Button>
+                        <div className="flex gap-2">
+                          <Button size="sm" onClick={() => handleAcceptInvite(invite.id)}>Accept</Button>
+                          <Button size="sm" variant="outline" onClick={() => handleRejectInvite(invite.id)}>Reject</Button>
+                        </div>
                       </li>
-                    ))}
-                  {allUsers.filter(u => u.id !== user?.id && !collaboratorIds.includes(u.id)).length === 0 && (
-                    <li className="py-2 text-slate-500">No users available to invite.</li>
+                    ))
                   )}
                 </ul>
               )}

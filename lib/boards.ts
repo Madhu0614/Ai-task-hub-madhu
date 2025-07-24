@@ -619,4 +619,95 @@ export const boardService = {
       throw error;
     }
   },
+
+  // Invite a user (create a pending invite)
+  async inviteUser(boardId: string, invitedUserEmail: string): Promise<any> {
+    // Find user by email
+    const { data: user, error: userError } = await supabase
+      .from('user_list')
+      .select('id')
+      .eq('email', invitedUserEmail.trim().toLowerCase())
+      .single();
+    if (userError || !user) throw new Error('User not found with that email address');
+
+    // Get current user (inviter)
+    const { data: { user: inviter } } = await supabase.auth.getUser();
+    if (!inviter) throw new Error('Not authenticated');
+
+    // Check for existing pending invite
+    const { data: existingInvite } = await supabase
+      .from('board_invites')
+      .select('id, status')
+      .eq('board_id', boardId)
+      .eq('invited_user_id', user.id)
+      .eq('status', 'pending')
+      .single();
+    if (existingInvite) throw new Error('User already has a pending invite');
+
+    // Create invite
+    const { data, error } = await supabase
+      .from('board_invites')
+      .insert({
+        board_id: boardId,
+        invited_user_id: user.id,
+        inviter_user_id: inviter.id,
+        status: 'pending'
+      })
+      .single();
+    if (error) throw new Error(`Failed to create invite: ${error.message}`);
+    return data;
+  },
+
+  // Accept an invite
+  async acceptInvite(inviteId: string): Promise<any> {
+    // Get invite
+    const { data: invite, error: inviteError } = await supabase
+      .from('board_invites')
+      .select('*')
+      .eq('id', inviteId)
+      .single();
+    if (inviteError || !invite) throw new Error('Invite not found');
+
+    // Add to collaborators
+    const { error: collabError } = await supabase
+      .from('board_collaborators')
+      .insert({
+        board_id: invite.board_id,
+        user_id: invite.invited_user_id,
+        role: 'editor'
+      });
+    if (collabError) throw new Error(`Failed to add collaborator: ${collabError.message}`);
+
+    // Update invite status
+    const { error: updateError } = await supabase
+      .from('board_invites')
+      .update({ status: 'accepted' })
+      .eq('id', inviteId);
+    if (updateError) throw new Error(`Failed to update invite: ${updateError.message}`);
+
+    return { success: true };
+  },
+
+  // Reject an invite
+  async rejectInvite(inviteId: string): Promise<any> {
+    const { error } = await supabase
+      .from('board_invites')
+      .update({ status: 'rejected' })
+      .eq('id', inviteId);
+    if (error) throw new Error(`Failed to reject invite: ${error.message}`);
+    return { success: true };
+  },
+
+  // Get pending invites for the current user
+  async getPendingInvites(): Promise<any[]> {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('Not authenticated');
+    const { data, error } = await supabase
+      .from('board_invites')
+      .select('*, boards(name), user_list:inviter_user_id(name, email)')
+      .eq('invited_user_id', user.id)
+      .eq('status', 'pending');
+    if (error) throw new Error(`Failed to fetch invites: ${error.message}`);
+    return data || [];
+  },
 };

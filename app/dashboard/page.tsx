@@ -84,7 +84,7 @@ export default function DashboardPage() {
     setAcceptedInviteId(null);
     try {
       // Add as collaborator
-      await boardService.addCollaborator(invite.board_id, user!.email, invite.role || 'editor');
+      await boardService.inviteUser(invite.board_id, user!.email);
       // Remove the pending invite
       await supabase.from('pending_invites').delete().eq('id', invite.id);
       // Refresh invites
